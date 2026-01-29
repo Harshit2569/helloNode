@@ -1,92 +1,97 @@
 
 
-
-
 import express from "express";
-import Database from "better-sqlite3";
-import path from "path";
-import { fileURLToPath } from "url";
+import { createClient } from "@libsql/client";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const app = express();
 const PORT = 3000;
 
 // Middleware
 app.use(express.json());
-app.use(express.urlencoded({ extended: true })); // to handle form submissions
+app.use(express.urlencoded({ extended: true }));
 
-// Needed to get current file directory in ES Modules
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// Validate env vars
+if (!process.env.TURSO_DATABASE_URL || !process.env.TURSO_AUTH_TOKEN) {
+  console.error(" Missing Turso environment variables");
+  process.exit(1);
+}
 
-console.log("__dirname:", __dirname);
+// Turso client
+const db = createClient({
+  url: process.env.TURSO_DATABASE_URL,
+  authToken: process.env.TURSO_AUTH_TOKEN,
+});
 
-const dbPath = path.resolve("users.db");
-console.log("SQLite DB path:", dbPath);
+// Init DB
+async function initDB() {
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL
+    )
+  `);
+  console.log(" Database ready");
+}
 
+initDB();
 
-// SQLite setup
-const db = new Database(dbPath);
-db.prepare(`
-  CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL
-  )
-`).run();
-
-// Home page with form and button
+// Home page
 app.get("/", (req, res) => {
   res.send(`
-    <h1>Node.js App 🚀</h1>
+    <h1>Node.js + Turso 🚀</h1>
 
-    <h2>Create a User</h2>
-    <form id="createUserForm" method="POST" action="/create-user">
-      <input type="text" name="name" placeholder="Enter your name" required />
-      <button type="submit">Create User</button>
+    <h2>Create User</h2>
+    <form method="POST" action="/create-user">
+      <input name="name" placeholder="Enter name" required />
+      <button type="submit">Create</button>
     </form>
 
-    <h2>All Users</h2>
-    <button id="showUsersBtn">Show Users</button>
-    <ul id="usersList"></ul>
+    <h2>Users</h2>
+    <button id="load">Load Users</button>
+    <ul id="list"></ul>
 
     <script>
-      const btn = document.getElementById('showUsersBtn');
-      const list = document.getElementById('usersList');
-
-      btn.addEventListener('click', async () => {
-        list.innerHTML = '<li>Loading...</li>';
-        const response = await fetch('/users');
-        const users = await response.json();
-        if (users.length === 0) {
-          list.innerHTML = '<li>No users found</li>';
-          return;
-        }
-        list.innerHTML = users.map(u => '<li>' + u.id + ': ' + u.name + '</li>').join('');
-      });
+      document.getElementById('load').onclick = async () => {
+        const ul = document.getElementById('list');
+        ul.innerHTML = '<li>Loading...</li>';
+        const res = await fetch('/users');
+        const data = await res.json();
+        ul.innerHTML = data.length
+          ? data.map(u => '<li>' + u.id + ': ' + u.name + '</li>').join('')
+          : '<li>No users found</li>';
+      };
     </script>
   `);
 });
 
-// Create user route (handles form submission)
-app.post("/create-user", (req, res) => {
+// Create user
+app.post("/create-user", async (req, res) => {
   const { name } = req.body;
-  if (!name) return res.send("Name is required");
+  if (!name) return res.send("Name required");
 
-  const stmt = db.prepare("INSERT INTO users (name) VALUES (?)");
-  const info = stmt.run(name);
+  const result = await db.execute({
+    sql: "INSERT INTO users (name) VALUES (?)",
+    args: [name],
+  });
 
   res.send(`
-    <h2>User Created Successfully!</h2>
-    <p>ID: ${info.lastInsertRowid}</p>
+    <h3>User Created</h3>
+    <p>ID: ${result.lastInsertRowid}</p>
     <p>Name: ${name}</p>
-    <a href="/">Go Back</a>
+    <a href="/">Back</a>
   `);
 });
 
-// API to list users (used by fetch)
-app.get("/users", (req, res) => {
-  const users = db.prepare("SELECT * FROM users").all();
-  res.json(users);
+// List users
+app.get("/users", async (req, res) => {
+  const result = await db.execute("SELECT * FROM users");
+  res.json(result.rows);
 });
 
 // Start server
-app.listen(PORT, () => console.log(`Server running at http://localhost:${PORT}`));
+app.listen(PORT, () => {
+  console.log(` Server running at http://localhost:${PORT}`);
+});
