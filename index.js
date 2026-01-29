@@ -1,80 +1,50 @@
-// import express from "express";
-
-// const app = express();
-// const PORT = 3000;
 
 
-// app.get("/", (req, res) => {
-//   res.send("Hello World from Express 🚀");
-// });
-
-// // Start the server
-// app.listen(PORT, () => {
-//   console.log(`Server running at http://localhost:${PORT}`);
-// });
-
-// import express from "express";
-
-// const app = express();
-// const PORT = 3000;
-
-// // Middleware to parse JSON
-// app.use(express.json());
-
-// // In-memory "database" for users
-// const users = [];
-
-// // Home route (optional)
-// app.get("/", (req, res) => {
-//   res.send("<h1>Hello World from Express 🚀</h1>");
-// });
-
-// // POST API to create a user (JSON-friendly)
-// app.post("/create-user", (req, res) => {
-//   const { name } = req.body;
-
-//   if (!name) {
-//     return res.status(400).json({ error: "Name is required" });
-//   }
-
-//   const user = { id: users.length + 1, name };
-//   users.push(user);
-
-//   res.status(201).json({
-//     message: "User created successfully",
-//     user,
-//   });
-// });
-
-// // GET API to list all users (optional)
-// app.get("/users", (req, res) => {
-//   res.json(users);
-// });
-
-// // Start the server
-// app.listen(PORT, () => {
-//   console.log(`Server running at http://localhost:${PORT}`);
-// });
 
 
 import express from "express";
+import Database from "better-sqlite3";
+import path from "path";
+import { fileURLToPath } from "url";
 
 const app = express();
 const PORT = 3000;
 
-// Middleware to parse JSON
+// Middleware
 app.use(express.json());
+app.use(express.urlencoded({ extended: true })); // to handle form submissions
 
-// In-memory "database" for users
-const users = [];
+// Needed to get current file directory in ES Modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-// Home route with button to see users
+console.log("__dirname:", __dirname);
+
+const dbPath = path.resolve("users.db");
+console.log("SQLite DB path:", dbPath);
+
+
+// SQLite setup
+const db = new Database(dbPath);
+db.prepare(`
+  CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL
+  )
+`).run();
+
+// Home page with form and button
 app.get("/", (req, res) => {
   res.send(`
-    <h1>Hello World from Express 🚀</h1>
+    <h1>Node.js App 🚀</h1>
 
+    <h2>Create a User</h2>
+    <form id="createUserForm" method="POST" action="/create-user">
+      <input type="text" name="name" placeholder="Enter your name" required />
+      <button type="submit">Create User</button>
+    </form>
 
-
+    <h2>All Users</h2>
     <button id="showUsersBtn">Show Users</button>
     <ul id="usersList"></ul>
 
@@ -96,29 +66,27 @@ app.get("/", (req, res) => {
   `);
 });
 
-// POST API to create a user (JSON-friendly)
+// Create user route (handles form submission)
 app.post("/create-user", (req, res) => {
   const { name } = req.body;
+  if (!name) return res.send("Name is required");
 
-  if (!name) {
-    return res.status(400).json({ error: "Name is required" });
-  }
+  const stmt = db.prepare("INSERT INTO users (name) VALUES (?)");
+  const info = stmt.run(name);
 
-  const user = { id: users.length + 1, name };
-  users.push(user);
-
-  res.status(201).json({
-    message: "User created successfully",
-    user,
-  });
+  res.send(`
+    <h2>User Created Successfully!</h2>
+    <p>ID: ${info.lastInsertRowid}</p>
+    <p>Name: ${name}</p>
+    <a href="/">Go Back</a>
+  `);
 });
 
-// GET API to list all users
+// API to list users (used by fetch)
 app.get("/users", (req, res) => {
+  const users = db.prepare("SELECT * FROM users").all();
   res.json(users);
 });
 
-// Start the server
-app.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}`);
-});
+// Start server
+app.listen(PORT, () => console.log(`Server running at http://localhost:${PORT}`));
