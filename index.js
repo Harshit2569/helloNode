@@ -41,7 +41,7 @@ initDB();
 // Home page
 app.get("/", (req, res) => {
   res.send(`
-    <h1>Node.js + Turso 🚀</h1>
+    <h1>Pulsar</h1>
 
     <h2>Create User</h2>
     <form method="POST" action="/create-user">
