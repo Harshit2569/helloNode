@@ -1,175 +1,4 @@
 
-
-
-// import express from "express";
-// import dotenv from "dotenv";
-// import multer from "multer";
-// import fs from "fs";
-// import csv from "csv-parser";
-// import { db, admin } from "./firebase.js";
-
-// dotenv.config();
-
-// const app = express();
-// const PORT = 3000;
-
-
-
-// const storage = multer.diskStorage({
-//   destination: "uploads/",
-//   filename: (req, file, cb) => {
-//     cb(null, Date.now() + "-" + file.originalname);
-//   },
-// });
-
-// const upload = multer({ storage });
-
-
-
-// app.use(express.json());
-// app.use(express.urlencoded({ extended: true }));
-
-
-
-// app.get("/", (req, res) => {
-//   res.send(`
-//     <h1>Pulsar</h1>
-
-//     <h2>Create User (Manual)</h2>
-//     <form method="POST" action="/create-user">
-//       <input name="name" placeholder="Enter name" required />
-//       <button type="submit">Create User</button>
-//     </form>
-
-//     <hr/>
-
-//     <h2>Upload Users via JSON</h2>
-//     <form method="POST" action="/upload-json" enctype="multipart/form-data">
-//       <input type="file" name="file" accept=".json" required />
-//       <br/><br/>
-//       <button type="submit">Upload JSON</button>
-//     </form>
-
-//     <hr/>
-
-//     <h2>Upload Users via CSV</h2>
-//     <form method="POST" action="/upload-csv" enctype="multipart/form-data">
-//       <input type="file" name="file" accept=".csv" required />
-//       <br/><br/>
-//       <button type="submit">Upload CSV</button>
-//     </form>
-
-//     <hr/>
-
-//     <h2>Users</h2>
-//     <button onclick="loadUsers()">Load Users</button>
-//     <ul id="list"></ul>
-
-//     <script>
-//       async function loadUsers() {
-//         const ul = document.getElementById('list');
-//         ul.innerHTML = '<li>Loading...</li>';
-//         const res = await fetch('/users');
-//         const data = await res.json();
-//         ul.innerHTML = data.length
-//           ? data.map(u => '<li>' + u.name + '</li>').join('')
-//           : '<li>No users found</li>';
-//       }
-//     </script>
-//   `);
-// });
-
-
-
-// app.post("/create-user", async (req, res) => {
-//   const { name } = req.body;
-//   if (!name) return res.send("Name required");
-
-//   await db.collection("users").add({
-//     name,
-//     createdAt: admin.firestore.FieldValue.serverTimestamp(),
-//   });
-
-//   res.redirect("/");
-// });
-
-
-
-// app.post("/upload-json", upload.single("file"), async (req, res) => {
-//   try {
-//     console.log("Original:", req.file.originalname);
-//     console.log("Saved as:", req.file.filename);
-
-//     const raw = fs.readFileSync(req.file.path, "utf-8");
-//     const users = JSON.parse(raw);
-
-//     if (!Array.isArray(users)) {
-//       return res.send("JSON must be an array");
-//     }
-
-//     for (const user of users) {
-//       await db.collection("users").add({
-//         name: user.name,
-//         sourceFile: req.file.originalname,
-//         createdAt: admin.firestore.FieldValue.serverTimestamp(),
-//       });
-//     }
-
-//     fs.unlinkSync(req.file.path);
-//     res.send("✅ JSON uploaded successfully");
-//   } catch (err) {
-//     res.status(500).send(err.message);
-//   }
-// });
-
-
-
-// app.post("/upload-csv", upload.single("file"), async (req, res) => {
-//   const users = [];
-
-//   fs.createReadStream(req.file.path)
-//     .pipe(csv())
-//     .on("data", (row) => {
-//       users.push(row);
-//     })
-//     .on("end", async () => {
-//       for (const user of users) {
-//         await db.collection("users").add({
-//           name: user.name,
-//           sourceFile: req.file.originalname,
-//           createdAt: admin.firestore.FieldValue.serverTimestamp(),
-//         });
-//       }
-
-//       fs.unlinkSync(req.file.path);
-//       res.send("✅ CSV uploaded successfully");
-//     });
-// });
-
-
-
-// app.get("/users", async (req, res) => {
-//   const snapshot = await db
-//     .collection("users")
-//     .orderBy("createdAt", "desc")
-//     .get();
-
-//   const users = snapshot.docs.map(doc => ({
-//     id: doc.id,
-//     ...doc.data(),
-//   }));
-
-//   res.json(users);
-// });
-
-
-
-// app.listen(PORT, () => {
-//   console.log(`🚀 Server running at http://localhost:${PORT}`);
-// });
-
-
-
 import express from "express";
 import dotenv from "dotenv";
 import multer from "multer";
@@ -180,22 +9,18 @@ import stream from "stream";
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
-/* ================= MULTER MEMORY STORAGE ================= */
-
+// ================= MULTER MEMORY STORAGE =================
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
-/* ================= MIDDLEWARE ================= */
-
+// ================= MIDDLEWARE =================
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-/* ================= HOME PAGE ================= */
-
+// ================= HOME PAGE =================
 app.get("/", async (req, res) => {
-  // Show uploaded JSON/CSV if query ?show=json is present
   let jsonHtml = "";
   if (req.query.show === "json") {
     const snapshot = await db
@@ -203,13 +28,12 @@ app.get("/", async (req, res) => {
       .orderBy("createdAt", "desc")
       .get();
 
-    const users = snapshot.docs.map(doc => ({
+    const users = snapshot.docs.map((doc) => ({
       name: doc.data().name,
-      age: doc.data().age || null,
     }));
 
     jsonHtml = `
-      <h3>📄 Uploaded Data</h3>
+      <h3>📄 Uploaded Users</h3>
       <pre style="background:#f4f4f4; padding:10px;">
 ${JSON.stringify(users, null, 2)}
       </pre>
@@ -222,7 +46,6 @@ ${JSON.stringify(users, null, 2)}
     <h2>Create User (Manual)</h2>
     <form method="POST" action="/create-user">
       <input name="name" placeholder="Enter name" required />
-      <input name="age" type="number" placeholder="Enter age" />
       <button type="submit">Create User</button>
     </form>
 
@@ -259,42 +82,36 @@ ${JSON.stringify(users, null, 2)}
         const res = await fetch('/users');
         const data = await res.json();
         ul.innerHTML = data.length
-          ? data.map(u => '<li>' + u.name + (u.age ? ' (Age: ' + u.age + ')' : '') + '</li>').join('')
+          ? data.map(u => '<li>' + u.name + '</li>').join('')
           : '<li>No users found</li>';
       }
     </script>
   `);
 });
 
-/* ================= CREATE USER ================= */
-
+// ================= CREATE USER =================
 app.post("/create-user", async (req, res) => {
-  const { name, age } = req.body;
+  const { name } = req.body;
   if (!name) return res.send("Name required");
 
   await db.collection("users").add({
     name,
-    age: age ? Number(age) : null,
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
   });
 
-  res.redirect("/");
+  res.redirect("/?show=json");
 });
 
-/* ================= UPLOAD JSON ================= */
-
+// ================= UPLOAD JSON =================
 app.post("/upload-json", upload.single("file"), async (req, res) => {
   try {
     const users = JSON.parse(req.file.buffer.toString("utf-8"));
 
-    if (!Array.isArray(users)) {
-      return res.send("JSON must be an array");
-    }
+    if (!Array.isArray(users)) return res.send("JSON must be an array");
 
     for (const user of users) {
       await db.collection("users").add({
         name: user.name,
-        age: user.age ? Number(user.age) : null,
         sourceFile: req.file.originalname,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
@@ -306,12 +123,10 @@ app.post("/upload-json", upload.single("file"), async (req, res) => {
   }
 });
 
-/* ================= UPLOAD CSV ================= */
-
+// ================= UPLOAD CSV =================
 app.post("/upload-csv", upload.single("file"), async (req, res) => {
   const users = [];
 
-  // Convert buffer to stream for csv-parser
   const readable = new stream.Readable();
   readable._read = () => {};
   readable.push(req.file.buffer);
@@ -324,7 +139,6 @@ app.post("/upload-csv", upload.single("file"), async (req, res) => {
       for (const user of users) {
         await db.collection("users").add({
           name: user.name,
-          age: user.age ? Number(user.age) : null,
           sourceFile: req.file.originalname,
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
         });
@@ -334,15 +148,14 @@ app.post("/upload-csv", upload.single("file"), async (req, res) => {
     });
 });
 
-/* ================= LIST USERS ================= */
-
+// ================= LIST USERS =================
 app.get("/users", async (req, res) => {
   const snapshot = await db
     .collection("users")
     .orderBy("createdAt", "desc")
     .get();
 
-  const users = snapshot.docs.map(doc => ({
+  const users = snapshot.docs.map((doc) => ({
     id: doc.id,
     ...doc.data(),
   }));
@@ -350,8 +163,8 @@ app.get("/users", async (req, res) => {
   res.json(users);
 });
 
-/* ================= START SERVER ================= */
-
+// ================= START SERVER =================
 app.listen(PORT, () => {
   console.log(`🚀 Server running at http://localhost:${PORT}`);
 });
+
